@@ -42,7 +42,8 @@ class Agent():
 
     """Get action using policy net using epsilon-greedy policy"""
     def get_action(self, state):
-        state = state.reshape([1, 4, 84, 84])
+        state = torch.from_numpy(state).cuda()
+        state = state.reshape(-1, 4, 84, 84)
         if np.random.rand() <= self.epsilon:
             ### CODE #### 
             # Choose a random action
@@ -53,8 +54,8 @@ class Agent():
             ### CODE ####
             # Choose the best action
             with torch.no_grad():
-              #print('best action ', self.policy_net(state).max(1))
-              return self.policy_net(torch.from_numpy(state)).max(1)
+                a = self.policy_net(state).max(1)[1].view(1, 1)
+
 
     # pick samples randomly from replay memory (with batch_size)
     def train_policy_net(self, frame):
@@ -72,6 +73,7 @@ class Agent():
         rewards = list(mini_batch[2])
         rewards = torch.FloatTensor(rewards).cuda()
         next_states = np.float32(history[:, 1:, :, :]) / 255.
+        next_states = torch.from_numpy(next_states).cuda()
         dones = mini_batch[3] # checks if the game is over
         mask = torch.tensor(list(map(int, dones==False)),dtype=torch.bool)
 
