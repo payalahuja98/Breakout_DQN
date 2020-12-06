@@ -39,7 +39,8 @@ class Agent():
 
         # Initialize a target network and initialize the target network to the policy net
         ### CODE ###
-        self.target_network = torch.copy(self.policy_net)
+        self.target_network = DQN(action_size)
+        self.target_network.to(device)
 
 
     def load_policy_net(self, path):
@@ -84,7 +85,7 @@ class Agent():
         rewards = torch.FloatTensor(rewards).cuda()
         next_states = np.float32(history[:, 1:, :, :]) / 255.
         dones = mini_batch[3] # checks if the game is over
-        mask = torch.tensor(list(map(int, dones==False)),dtype=torch.uint8)
+        mask = torch.tensor(list(map(int, dones==False)),dtype=torch.bool)
         
         # Your agent.py code here with double DQN modifications
         non_terminal_state = self.policy_net(states[mask])
