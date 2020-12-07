@@ -42,7 +42,7 @@ class Agent():
 
     """Get action using policy net using epsilon-greedy policy"""
     def get_action(self, state):
-        #state = torch.from_numpy(state).cuda()
+        state = torch.from_numpy(state).cuda()
         state = state.reshape(-1, 4, 84, 84)
         if np.random.rand() <= self.epsilon:
             ### CODE #### 
@@ -54,7 +54,7 @@ class Agent():
             ### CODE ####
             # Choose the best action
             with torch.no_grad():
-                a = self.policy_net(state).max(1)[1].view(1, 1)
+                return self.policy_net(state).max(1)[1].view(1, 1)
 
 
     # pick samples randomly from replay memory (with batch_size)
@@ -77,28 +77,22 @@ class Agent():
         dones = mini_batch[3] # checks if the game is over
         mask = torch.tensor(list(map(int, dones==False)),dtype=torch.bool)
 
-        non_terminal_state = self.policy_net(states[mask])
+        non_terminal_state = self.policy_net(states)
         non_terminal__next_state = self.policy_net(next_states[mask])
         # Compute Q(s_t, a), the Q-value of the current state
         ### CODE ####
-        try:
-          state_action_values = rewards + self.discount_factor * (non_terminal_state.gather(1, actions))
-        except IndexError:
-          print(states.shape)
-          #print(state_action_values.shape)
-          raise
+        state_action_values = rewards + self.discount_factor * (non_terminal_state.gather(1, actions.unsqueeze(1)))
 
         # Compute Q function of next state
         ### CODE ####
-        next_state_action_values = rewards + self.discount_factor * (non_terminal__next_state.gather(1, actions))
-
-        # Find maximum Q-value of action at next state from target net
-        ### CODE ####
-        expected_state_action_values = next_state_action_values.max(1)[0]
+        next_state_values = torch.zeros(batch_size, device=device)
+        next_state_values[mask] = non_terminal__next_state.max(1)[0].detach()
+        # Compute the expected Q values
+        expected_state_action_values = (next_state_values * scheduler_gamma) + rewards
 
         # Compute the Huber Loss
         ### CODE ####
-        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
+        loss = F.smooth_l1_loss(state_action_values.unsqueeze(1), expected_state_action_values.unsqueeze(1))
 
         # Optimize the model, .step() both the optimizer and the scheduler!
         ### CODE ####
