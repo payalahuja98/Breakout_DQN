@@ -8,7 +8,7 @@ evaluation_reward_length = 100
 Memory_capacity = 1000000
 train_frame = 100000
 batch_size = 32
-scheduler_gamma = 0.4
+scheduler_gamma = 0.99
 scheduler_step_size = 100000
 
 # Hyperparameters for Double DQN agent
