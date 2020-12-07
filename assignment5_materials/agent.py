@@ -42,7 +42,7 @@ class Agent():
 
     """Get action using policy net using epsilon-greedy policy"""
     def get_action(self, state):
-        state = torch.from_numpy(state).cuda()
+        #state = torch.from_numpy(state).cuda()
         state = state.reshape(-1, 4, 84, 84)
         if np.random.rand() <= self.epsilon:
             ### CODE #### 
