@@ -58,13 +58,13 @@ class Agent():
             ### CODE #### 
             # Choose a random action
             # print(torch.tensor([[random.randrange(self.action_size)]], device=device, dtype=torch.long))
-            return torch.tensor([[random.randrange(self.action_size)]], device=device, dtype=torch.long)
+            return torch.tensor(np.random.randint(0, self.action_size))
+            # return torch.tensor([[random.randrange(self.action_size)]], device=device, dtype=torch.long)
 
         else:
             ### CODE ####
-            # Choose the best action
-            with torch.no_grad():
-                return self.policy_net(state).max(1)[1].view(1, 1)
+            #argmax might not work
+            return torch.argmax(self.policy_net(state))
 
     # pick samples randomly from replay memory (with batch_size)
     def train_policy_net(self, frame):
@@ -84,18 +84,18 @@ class Agent():
         next_states = np.float32(history[:, 1:, :, :]) / 255.
         next_states = torch.FloatTensor(next_states).cuda()
         dones = mini_batch[3] # checks if the game is over
-        musk = torch.tensor(list(map(int, dones==False)),dtype=torch.uint8)
+        mask = torch.tensor(list(map(int, dones==False)),dtype=torch.uint8)
         
         # Your agent.py code here with double DQN modifications
-        states_qsa = self.policy_net(states).gather(1, actions.view(-1, 1))
+        state_action_values = self.policy_net(states).gather(1, actions.view(-1, 1))
 
-        non_final_next_states = next_states[musk==1]
+        non_terminal_next_states = next_states[mask==1]
         next_state_values = torch.zeros(batch_size, device=device)
-        next_state_values[musk==1] = self.target_net(non_final_next_states).max(1)[0].detach()
+        next_state_values[mask==1] = self.target_net(non_terminal_next_states).max(1)[0].detach()
         expected_state_action_values = (next_state_values * self.discount_factor) + rewards
        
         # Compute the Huber Loss
-        loss = F.smooth_l1_loss(states_qsa, expected_state_action_values.unsqueeze(1))
+        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
         # Optimize the model, .step() both the optimizer and the scheduler!
         self.optimizer.zero_grad()
