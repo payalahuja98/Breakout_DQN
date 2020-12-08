@@ -38,9 +38,9 @@ class Agent():
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=scheduler_step_size, gamma=scheduler_gamma)
 
         # Initialize a target network and initialize the target network to the policy net
-        ### CODE ###
-        self.target_network = DQN(action_size)
-        self.target_network.to(device)
+        self.target_net = DQN(action_size).to(device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.target_net.eval()
 
 
     def load_policy_net(self, path):
@@ -48,13 +48,12 @@ class Agent():
 
     # after some time interval update the target net to be same with policy net
     def update_target_net(self):
-        ### CODE ###
-        self.target_network.load_state_dict(self.policy_net.state_dict())
-
+        self.target_net.load_state_dict(self.policy_net.state_dict())
 
     """Get action using policy net using epsilon-greedy policy"""
     def get_action(self, state):
-        state = state.reshape([1, 4, 84, 84])
+        state = torch.from_numpy(state).cuda()
+        state = state.reshape(-1, 4, 84, 84)
         if np.random.rand() <= self.epsilon:
             ### CODE #### 
             # Choose a random action
@@ -65,8 +64,7 @@ class Agent():
             ### CODE ####
             # Choose the best action
             with torch.no_grad():
-              #print('best action ', self.policy_net(state).max(1))
-              return self.policy_net(state).max(1)
+                return self.policy_net(state).max(1)[1].view(1, 1)
 
     # pick samples randomly from replay memory (with batch_size)
     def train_policy_net(self, frame):
@@ -84,36 +82,28 @@ class Agent():
         rewards = list(mini_batch[2])
         rewards = torch.FloatTensor(rewards).cuda()
         next_states = np.float32(history[:, 1:, :, :]) / 255.
-        next_states = torch.from_numpy(next_states).cuda()
+        next_states = torch.FloatTensor(next_states).cuda()
         dones = mini_batch[3] # checks if the game is over
-        mask = torch.tensor(list(map(int, dones==False)),dtype=torch.bool)
+        musk = torch.tensor(list(map(int, dones==False)),dtype=torch.uint8)
         
         # Your agent.py code here with double DQN modifications
-        non_terminal_state = self.policy_net(states)
-        non_terminal_next_state = self.policy_net(next_states)
-        non_terminal_next_state_target = self.target_network(next_states[mask])
-        # Compute Q(s_t, a), the Q-value of the current state
-        ### CODE ####
-        state_action_values = rewards + self.discount_factor * (non_terminal_state.gather(1, actions.unsqueeze(1)))
+        states_qsa = self.policy_net(states).gather(1, actions.view(-1, 1))
 
-        # Compute Q function of next state
-        ### CODE ####
-        next_state_action_values = rewards + self.discount_factor * (non_terminal_next_state.gather(1, actions.unsqueeze(1)))
-        # Find action that gives maximum Q-value
-        ### CODE ####
-        expected_state_action = torch.argmax(next_state_action_values)
-        expected_state_action_values = non_terminal_next_state_target[expected_state_action]
+        non_final_next_states = next_states[musk==1]
+        next_state_values = torch.zeros(batch_size, device=device)
+        next_state_values[musk==1] = self.target_net(non_final_next_states).max(1)[0].detach()
+        expected_state_action_values = (next_state_values * self.discount_factor) + rewards
+       
         # Compute the Huber Loss
-        ### CODE ####
-        loss = F.smooth_l1_loss(state_action_values.unsqueeze(1), expected_state_action_values.unsqueeze(1))
+        loss = F.smooth_l1_loss(states_qsa, expected_state_action_values.unsqueeze(1))
 
         # Optimize the model, .step() both the optimizer and the scheduler!
-        ### CODE ####
         self.optimizer.zero_grad()
         loss.backward()
         for param in self.policy_net.parameters():
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
-        ### CODE ###
+        self.scheduler.step()
+
      
         
