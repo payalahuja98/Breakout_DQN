@@ -57,10 +57,7 @@ class Agent():
         if np.random.rand() <= self.epsilon:
             ### CODE #### 
             # Choose a random action
-            # print(torch.tensor([[random.randrange(self.action_size)]], device=device, dtype=torch.long))
             return torch.tensor(np.random.randint(0, self.action_size))
-            # return torch.tensor([[random.randrange(self.action_size)]], device=device, dtype=torch.long)
-
         else:
             ### CODE ####
             #argmax might not work
@@ -106,4 +103,3 @@ class Agent():
         self.scheduler.step()
 
      
-        

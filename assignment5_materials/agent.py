@@ -47,14 +47,11 @@ class Agent():
         if np.random.rand() <= self.epsilon:
             ### CODE #### 
             # Choose a random action
-            # print(torch.tensor([[random.randrange(self.action_size)]], device=device, dtype=torch.long))
-            return torch.tensor([[random.randrange(self.action_size)]], device=device, dtype=torch.long)
-
+            return torch.tensor(np.random.randint(0, self.action_size))
         else:
             ### CODE ####
-            # Choose the best action
-            with torch.no_grad():
-                return self.policy_net(state).max(1)[1].view(1, 1)
+            #argmax might not work
+            return torch.argmax(self.policy_net(state))
 
 
     # pick samples randomly from replay memory (with batch_size)
@@ -77,22 +74,22 @@ class Agent():
         dones = mini_batch[3] # checks if the game is over
         mask = torch.tensor(list(map(int, dones==False)),dtype=torch.bool)
 
-        non_terminal_state = self.policy_net(states)
-        non_terminal__next_state = self.policy_net(next_states[mask])
+        
         # Compute Q(s_t, a), the Q-value of the current state
         ### CODE ####
-        state_action_values = rewards + self.discount_factor * (non_terminal_state.gather(1, actions.unsqueeze(1)))
+        state_action_values = self.policy_net(states).gather(1, actions.view(-1, 1))
 
         # Compute Q function of next state
         ### CODE ####
+        non_terminal_next_state = next_states[mask==1]
         next_state_values = torch.zeros(batch_size, device=device)
-        next_state_values[mask] = non_terminal__next_state.max(1)[0].detach()
+        next_state_values[mask==1] = self.policy_net(non_terminal_next_state).max(1)[0].detach()
         # Compute the expected Q values
-        expected_state_action_values = (next_state_values * scheduler_gamma) + rewards
+        expected_state_action_values = (next_state_values * self.discount_factor) + rewards
 
         # Compute the Huber Loss
         ### CODE ####
-        loss = F.smooth_l1_loss(state_action_values.unsqueeze(1), expected_state_action_values.unsqueeze(1))
+        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
         # Optimize the model, .step() both the optimizer and the scheduler!
         ### CODE ####
@@ -101,5 +98,6 @@ class Agent():
         for param in self.policy_net.parameters():
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
+        self.scheduler.step()
 
 
